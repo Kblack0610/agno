@@ -13,6 +13,10 @@ from typing import Dict, List, Any, Optional, Callable, Union
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
+# Import configuration system
+from ..config.config_manager import ConfigManager
+from ..config.validation_profile import ValidationProfile
+
 class SequentialOrchestrator:
     """
     Orchestrates validation workflows using sequential thinking MCP.
@@ -24,20 +28,32 @@ class SequentialOrchestrator:
     def __init__(
         self, 
         validation_context: Dict[str, Any] = None,
-        model_id: str = "gpt-4o",
-        mcp_endpoint: str = None
+        model_id: str = None,
+        mcp_endpoint: str = None,
+        config_path: Optional[Union[str, Path]] = None
     ):
         """
         Initialize the sequential orchestrator.
         
         Args:
             validation_context: Initial context for validation
-            model_id: Model ID to use for reasoning
+            model_id: Model ID to use for reasoning (overrides configuration)
             mcp_endpoint: MCP endpoint URL (if None, uses default)
+            config_path: Path to configuration file or directory
         """
+        # Initialize configuration
+        self.config = ConfigManager(config_path)
+        
+        # Get configuration values, with arguments taking precedence
         self.validation_context = validation_context or {}
-        self.model_id = model_id
-        self.mcp_endpoint = mcp_endpoint
+        self.model_id = model_id or self.config.get("model.id", "gpt-4o")
+        self.mcp_endpoint = mcp_endpoint or self.config.get("mcp.endpoint", None)
+        
+        # Initialize validation profile
+        profile_name = self.config.get("validation.profile", "standard")
+        self.validation_profile = ValidationProfile(profile_name, self.config)
+        
+        # Track thought history
         self.thought_history = []
         
     def start_validation_chain(
@@ -51,20 +67,40 @@ class SequentialOrchestrator:
         Start a validation thought chain using sequential thinking.
         
         Args:
-            prompt: Initial validation prompt
+            prompt: Initial prompt for the validation
             validation_type: Type of validation to perform
-            initial_context: Initial context for this validation chain
-            estimated_steps: Estimated number of steps in the validation
+            initial_context: Optional initial context
+            estimated_steps: Estimated number of reasoning steps
             
         Returns:
-            The result of the validation chain
+            Result of the validation chain
         """
-        # Merge context if provided
-        if initial_context:
-            context = {**self.validation_context, **initial_context}
-        else:
-            context = self.validation_context
+        # Check if validation is required based on profile
+        if not self.validation_profile.is_validation_required(validation_type):
+            return {
+                "result": "Validation skipped",
+                "reason": f"Validation type '{validation_type}' is not required by profile '{self.validation_profile.name}'",
+                "success": True,
+                "thought_history": []
+            }
             
+        # Build context for sequential thinking
+        context = {
+            "validation_type": validation_type,
+            "validation_profile": self.validation_profile.name,
+            "thresholds": {
+                k: v for k, v in self.validation_profile._profile_settings.items()
+                if "threshold" in k
+            }
+        }
+        
+        # Add initial context if provided
+        if initial_context:
+            context.update(initial_context)
+            
+        # Add any existing validation context
+        context.update(self.validation_context)
+        
         # Initialize thought chain using MCP sequential thinking
         # In a real implementation, this would call the MCP endpoint
         print(f"Starting validation chain for: {prompt}")

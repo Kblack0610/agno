@@ -1,0 +1,56 @@
+## Custom Validation Profile Configuration
+## This configuration demonstrates a custom validation profile
+## with user-specific thresholds and settings
+
+validation:
+  profile: custom
+  test_frameworks:
+    - pytest
+  linters:
+    - flake8
+  type_checkers:
+    - mypy
+  timeout: 120
+  report_format: markdown
+  custom_profile:
+    test_coverage_threshold: 85
+    complexity_threshold: 8
+    lint_error_threshold: 0
+    lint_warning_threshold: 15
+    type_check_required: true
+    fail_on_any_issue: false
+    security_scan_required: true
+    performance_check_required: false
+    validation_level: high
+
+agents:
+  test_validation:
+    enabled: true
+    result_analysis: true
+    coverage_threshold: 85  # Overridden by custom_profile
+  code_quality:
+    enabled: true
+    complexity_threshold: 8  # Overridden by custom_profile
+    style_check: true
+  performance:
+    enabled: false
+    benchmark_iterations: 5
+  security:
+    enabled: true
+    vulnerability_scan: true
+    dependency_check: true
+
+model:
+  id: "gpt-4o"
+  temperature: 0.2
+  max_tokens: 4000
+
+sequential_thinking:
+  enabled: true
+  max_steps: 15
+  thought_persistence: true
+
+logging:
+  level: INFO
+  file: "validation.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

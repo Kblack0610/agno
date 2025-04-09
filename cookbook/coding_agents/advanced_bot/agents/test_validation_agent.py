@@ -13,6 +13,10 @@ from typing import Dict, List, Any, Optional, Union
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
+# Import configuration system
+from ..config.config_manager import ConfigManager
+from ..config.validation_profile import ValidationProfile
+
 class TestTools:
     """Tools for test validation and execution."""
     
@@ -140,8 +144,7 @@ class TestTools:
             return f"Error reading file: {str(e)}"
 
 class TestValidationAgent:
-    """
-    Agent specialized in test validation and analysis.
+    """Agent specialized in test validation and analysis.
     
     This agent runs tests, analyzes test results, and provides insights
     and recommendations for improving test coverage and quality.
@@ -149,25 +152,42 @@ class TestValidationAgent:
     
     def __init__(
         self,
-        model_id: str = "gpt-4o",
-        show_tool_calls: bool = True
+        model_id: str = None,
+        show_tool_calls: bool = True,
+        config_path: Optional[Union[str, Path]] = None
     ):
         """
         Initialize the test validation agent.
         
         Args:
-            model_id: Model ID to use for analysis
+            model_id: Model ID to use for analysis (overrides configuration)
             show_tool_calls: Whether to show tool calls in output
+            config_path: Path to configuration file or directory
         """
+        # Initialize configuration
+        self.config = ConfigManager(config_path)
+        
+        # Initialize tools
         self.tools = TestTools()
+        
+        # Initialize validation profile
+        profile_name = self.config.get("validation.profile", "standard")
+        self.validation_profile = ValidationProfile(profile_name, self.config)
+        
+        # Get model ID from config if not provided
+        model_id = model_id or self.config.get("model.id", "gpt-4o")
+        
+        # Configure the agent with more detailed instructions based on profile
         self.agent = Agent(
             name="Test Validation Agent",
             model=OpenAIChat(id=model_id),
-            description="An agent that specializes in test validation and analysis",
-            instructions="""
+            description=f"An agent that specializes in test validation and analysis using the {profile_name} profile",
+            instructions=f"""
             You are a Test Validation Agent that specializes in running tests,
             analyzing test results, and providing insights for improving test
             coverage and quality.
+            
+            Your active validation profile is: {profile_name}
             
             Your responsibilities include:
             1. Running tests using different testing frameworks
@@ -182,6 +202,12 @@ class TestValidationAgent:
             - Check for proper assertions and validations
             - Suggest improvements for test structure and readability
             - Recommend additional tests where coverage is lacking
+            
+            Validation thresholds for your current profile:
+            - Test coverage threshold: {self.validation_profile.get("test_coverage_threshold")}%
+            - Maximum complexity threshold: {self.validation_profile.get("complexity_threshold")}
+            - Lint error threshold: {self.validation_profile.get("lint_error_threshold")}
+            - Lint warning threshold: {self.validation_profile.get("lint_warning_threshold")}
             
             Format your analysis with:
             - Summary of test results (passed/failed)
