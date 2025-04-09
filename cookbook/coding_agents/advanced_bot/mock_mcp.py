@@ -21,25 +21,52 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Try to import the Claude API
+try:
+    from utils.claude_api import ClaudeAPI
+    CLAUDE_API_AVAILABLE = True
+except ImportError:
+    CLAUDE_API_AVAILABLE = False
+    logger.warning("Claude API not available, falling back to mock implementation")
+
 
 class MockMCP:
     """
     Standalone Mock MCP implementation that can be used in place of the real MCP.
     """
     
-    def __init__(self, use_real_mcp=False, mcp_server_url=None):
+    def __init__(
+            self, 
+            use_real_mcp=False, 
+            mcp_server_url=None, 
+            use_claude=True,
+            claude_api_key=None
+        ):
         """
         Initialize the Mock MCP.
         
         Args:
             use_real_mcp: Whether to use the real MCP if available
             mcp_server_url: URL of the real MCP server if use_real_mcp is True
+            use_claude: Whether to use Claude API for sequential thinking
+            claude_api_key: API key for Claude (optional if set in env var)
         """
         self.use_real_mcp = use_real_mcp
         self.mcp_server_url = mcp_server_url
+        self.use_claude = use_claude and CLAUDE_API_AVAILABLE
         
         # Initialize mock components
         self.sequential_thinking = MockSequentialThinking()
+        
+        # Initialize Claude API if available and requested
+        self.claude_api = None
+        if self.use_claude:
+            try:
+                self.claude_api = ClaudeAPI(api_key=claude_api_key)
+                logger.info("Claude API initialized for sequential thinking")
+            except Exception as e:
+                logger.error(f"Failed to initialize Claude API: {e}")
+                self.use_claude = False
         
         # Try to import real MCP if requested
         self.real_mcp_available = False
@@ -53,7 +80,7 @@ class MockMCP:
             except ImportError:
                 logger.warning("Real MCP not available, falling back to mock implementation")
         
-        logger.info(f"Initialized MockMCP with use_real_mcp={use_real_mcp}, real_mcp_available={self.real_mcp_available}")
+        logger.info(f"Initialized MockMCP with use_real_mcp={use_real_mcp}, real_mcp_available={self.real_mcp_available}, use_claude={self.use_claude}")
     
     def sequentialthinking(
         self,
@@ -111,58 +138,63 @@ class MockMCP:
                 needs_more_thoughts=needs_more_thoughts
             )
     
-    def run_sequential_thinking(self, prompt: str, total_thoughts: int = 5, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def run_sequential_thinking(
+            self,
+            prompt: str,
+            total_thoughts: int = 5,
+            context: Dict[str, Any] = None
+        ) -> Dict[str, Any]:
         """
-        Run sequential thinking for a prompt.
+        Run sequential thinking on a prompt.
         
         Args:
             prompt: The prompt to think about
-            total_thoughts: Number of thoughts to generate
-            context: Additional context for the thinking process
+            total_thoughts: Total number of thoughts to generate
+            context: Additional context for thinking
             
         Returns:
-            Dictionary with sequential thinking results
+            Dictionary with results of sequential thinking
         """
-        logger.info(f"Running sequential thinking for prompt: {prompt[:50]}...")
+        logger.info(f"Running sequential thinking with prompt: {prompt[:50]}{'...' if len(prompt) > 50 else ''}")
         
-        # Initialize result
-        result = {
-            "success": True,
-            "steps": []
-        }
+        # Use Claude API if available and enabled
+        if self.use_claude and self.claude_api:
+            try:
+                logger.info("Using Claude API for sequential thinking")
+                return self.claude_api.sequential_thinking(
+                    prompt=prompt,
+                    context=context,
+                    total_thoughts=total_thoughts
+                )
+            except Exception as e:
+                logger.error(f"Error using Claude API for sequential thinking: {e}")
+                logger.info("Falling back to mock sequential thinking")
         
-        # Start with an initial thought
-        current_thought = f"Let's analyze this task: {prompt}"
-        thought_number = 1
+        # Use mock implementation as fallback
+        steps = []
+        current_thought = prompt
         
-        # Generate a sequence of thoughts
-        while thought_number <= total_thoughts:
-            # Add current thought to result
-            result["steps"].append({
-                "thought": current_thought,
-                "thoughtNumber": thought_number,
-                "totalThoughts": total_thoughts,
-                "nextThoughtNeeded": thought_number < total_thoughts
-            })
-            
-            # If we've reached the total thoughts, break
-            if thought_number >= total_thoughts:
-                break
-            
-            # Generate next thought using the sequential thinking implementation
-            next_thought = self.sequential_thinking.think(
+        # Generate initial thoughts
+        for i in range(1, total_thoughts + 1):
+            # Generate a new thought
+            thought_result = self.sequential_thinking.think(
                 thought=current_thought,
-                thought_number=thought_number,
+                thought_number=i,
                 total_thoughts=total_thoughts,
-                next_thought_needed=True,
-                is_revision=False
+                next_thought_needed=(i < total_thoughts)
             )
             
-            # Update for next iteration
-            current_thought = next_thought["thought"]
-            thought_number += 1
+            steps.append(thought_result)
+            current_thought = thought_result.get("thought", "")
+            
+            # If no more thoughts needed, break
+            if not thought_result.get("next_thought_needed", True):
+                break
         
-        return result
+        return {
+            "success": True,
+            "steps": steps
+        }
 
 
 class MockSequentialThinking:

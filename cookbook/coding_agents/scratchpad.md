@@ -221,10 +221,30 @@ Build a comprehensive multi-agent system for automated code development that int
 #### Current Debugging Status
 - ✅ Fixed missing reset functions in message_bus and state_manager
 - ✅ Updated TestValidationAgent to accept verbose parameter
-- ❌ CLI still hangs when running the full workflow
-- [ ] Need to test individual components separately
-- [ ] Check for potential deadlocks in communication
-- [ ] Verify output directory permissions
+- ✅ Fixed timeout issues in the state manager
+- ✅ Added timeout protection to headless CLI runner
+- ❌ No automatic test generation during workflow execution
+
+### New Task: Enhance Test Generation and Model Integration
+
+#### Requirements
+- Add automatic test generation to the workflow when creating code
+- Integrate Claude 3.7 with the thinking model for improved results
+- Ensure tests are comprehensive and validate the functionality correctly
+
+#### Implementation Plan
+- [ ] Review existing test generation in the TestValidationAgent
+- [ ] Create a dedicated test generation component 
+- [ ] Integrate Claude 3.7 API for sequential thinking capabilities
+- [ ] Modify the orchestrator to ensure test generation happens during execution
+- [ ] Add test validation step to verify that tests are meaningful
+- [ ] Update the CLI to include test information in the output
+
+#### Technical Approach
+- Use the mock MCP for local development/testing
+- Add Claude 3.7 as an option for the actual implementation
+- Ensure backward compatibility with existing components
+- Create comprehensive tests for all generated code
 
 ### Implementation Approach
 
