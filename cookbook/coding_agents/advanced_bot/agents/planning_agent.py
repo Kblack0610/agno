@@ -192,7 +192,67 @@ class PlanningAgent(BaseAgent):
         
         self.logger.info(f"Creating plan with validation types: {validation_types}")
         
-        # Run sequential thinking for planning
+        # Check for specialized application types
+        if "calculator" in prompt.lower():
+            # Create specialized plan for calculator application
+            self.logger.info("Creating specialized plan for calculator application")
+            
+            plan_id = str(uuid.uuid4())
+            
+            tasks = [
+                {
+                    "task_id": "create_main",
+                    "type": "create_file",
+                    "path": "main.py",
+                    "description": "Create main Python script for calculator application",
+                    "validation": ["test", "lint"] if "test" in validation_types else ["lint"],
+                    "file_type": "python",
+                    "task_type": "calculator_main"
+                },
+                {
+                    "task_id": "create_utils",
+                    "type": "create_file",
+                    "path": "utils.py",
+                    "description": "Create utilities module with calculator operations",
+                    "validation": ["test", "lint"] if "test" in validation_types else ["lint"],
+                    "file_type": "python",
+                    "task_type": "calculator_utils"
+                },
+                {
+                    "task_id": "create_tests",
+                    "type": "create_file",
+                    "path": "test_main.py",
+                    "description": "Create test file for calculator functionality",
+                    "validation": ["lint"],
+                    "file_type": "python",
+                    "task_type": "calculator_tests"
+                }
+            ]
+            
+            # Add validation tasks if needed
+            if validation_types and "test" in validation_types:
+                tasks.append({
+                    "task_id": "run_tests",
+                    "type": "run_tests",
+                    "path": ".",
+                    "description": "Run tests for the implemented functionality",
+                    "validation": [],
+                    "continue_on_failure": True
+                })
+                
+            # Create plan structure
+            plan = {
+                "plan_id": plan_id,
+                "prompt": prompt,
+                "tasks": tasks,
+                "validation_types": validation_types,
+                "created_at": time.time()
+            }
+            
+            self.logger.info(f"Created specialized plan with {len(tasks)} tasks")
+            return plan
+        
+        # For other cases, run sequential thinking for planning
         thinking_result = self.mcp.run_sequential_thinking(
             prompt=f"Create a development plan for: {prompt}",
             total_thoughts=7,

@@ -11,6 +11,7 @@ import json
 import logging
 import requests
 import time
+import random
 from typing import Dict, List, Any, Optional, Union
 
 # Configure logging
@@ -64,48 +65,54 @@ class ClaudeAPI:
         logger.info(f"Initialized Claude API client with model: {model}")
 
     def complete(
-            self,
-            prompt: str,
-            system_prompt: Optional[str] = None,
-            max_tokens: int = 4000,
-            temperature: float = 0.7,
-            top_p: float = 0.9,
+            self, 
+            prompt: str, 
+            system_prompt: Optional[str] = None, 
+            max_tokens: int = 2000, 
+            temperature: float = 0.7, 
             stop_sequences: Optional[List[str]] = None
         ) -> Dict[str, Any]:
         """
-        Generate a completion from Claude API.
+        Generate a completion response from the Claude API.
         
         Args:
-            prompt: User prompt
-            system_prompt: System prompt to guide the model
-            max_tokens: Maximum tokens to generate
-            temperature: Sampling temperature (0.0 to 1.0)
-            top_p: Nucleus sampling parameter
-            stop_sequences: Sequences that will stop generation
+            prompt: The user message to send to the API
+            system_prompt: Optional system prompt to guide the model's behavior
+            max_tokens: Maximum number of tokens to generate
+            temperature: Temperature parameter for controlling randomness
+            stop_sequences: Optional list of stop sequences
             
         Returns:
-            Response from the API
+            Dictionary containing the completion response or error information
         """
-        # Construct the request payload
-        messages = [{"role": "user", "content": prompt}]
-        
+        # Prepare the request payload
         payload = {
             "model": self.model,
-            "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "top_p": top_p
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
         }
         
+        # Add system prompt if provided
         if system_prompt:
             payload["system"] = system_prompt
-        
+            
+        # Add stop sequences if provided
         if stop_sequences:
             payload["stop_sequences"] = stop_sequences
+            
+        logger.debug(f"Sending request to Claude API with payload: {json.dumps(payload)}")
         
-        # Make the API request with retries
-        for attempt in range(self.max_retries):
+        # Make the API request with retry logic
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
             try:
+                logger.debug(f"API request attempt {attempt + 1}/{max_retries}")
+                
                 response = requests.post(
                     f"{self.base_url}/v1/messages",
                     headers=self.headers,
@@ -113,29 +120,87 @@ class ClaudeAPI:
                     timeout=self.timeout
                 )
                 
-                if response.status_code in (429, 500, 502, 503, 504) and attempt < self.max_retries - 1:
-                    # Exponential backoff
-                    backoff_time = 2 ** attempt + 1
-                    logger.warning(f"API rate limit exceeded or server error. Retrying in {backoff_time} seconds...")
-                    time.sleep(backoff_time)
-                    continue
+                # Log response status
+                logger.debug(f"API response status: {response.status_code}")
                 
-                # Log response status and body if there's an error
-                if response.status_code >= 400:
-                    logger.error(f"API error: {response.status_code}")
-                    logger.error(f"Response body: {response.text}")
-                
-                response.raise_for_status()
-                return response.json()
-            
-            except requests.exceptions.RequestException as e:
-                if attempt < self.max_retries - 1:
-                    logger.warning(f"API request failed: {e}. Retrying...")
-                    continue
+                # Check if the request was successful
+                if response.status_code == 200:
+                    response_data = response.json()
+                    logger.debug(f"API response data: {json.dumps(response_data)}")
+                    
+                    # Extract content from response
+                    if "content" in response_data:
+                        # Handle list of content blocks
+                        if isinstance(response_data["content"], list):
+                            content = ""
+                            for block in response_data["content"]:
+                                if block.get("type") == "text":
+                                    content += block.get("text", "")
+                        else:
+                            content = str(response_data["content"])
+                    else:
+                        # Try to extract content from new API format
+                        content = ""
+                        for message in response_data.get("messages", []):
+                            if message.get("role") == "assistant":
+                                if isinstance(message.get("content"), list):
+                                    for block in message.get("content", []):
+                                        if block.get("type") == "text":
+                                            content += block.get("text", "")
+                                else:
+                                    content += str(message.get("content", ""))
+                        
+                    return {
+                        "success": True,
+                        "content": content,
+                        "usage": response_data.get("usage", {})
+                    }
                 else:
-                    logger.error(f"API request failed after {self.max_retries} attempts: {e}")
-                    raise
-    
+                    # Log detailed error information
+                    logger.error(f"API request failed with status {response.status_code}")
+                    error_detail = "Unknown error"
+                    
+                    # Try to extract error details from response
+                    try:
+                        error_data = response.json()
+                        logger.error(f"Error response: {json.dumps(error_data)}")
+                        error_detail = error_data.get("error", {}).get("message", "Unknown error")
+                    except Exception as e:
+                        logger.error(f"Failed to parse error response: {e}")
+                        error_detail = response.text[:200] if response.text else "Unknown error"
+                    
+                    # Check if we should retry
+                    if response.status_code in [429, 500, 502, 503, 504] and attempt < max_retries - 1:
+                        retry_delay_with_jitter = retry_delay * (2 ** attempt) + random.uniform(0, 1)
+                        logger.warning(f"Retrying in {retry_delay_with_jitter:.2f} seconds...")
+                        time.sleep(retry_delay_with_jitter)
+                        continue
+                    
+                    return {
+                        "success": False,
+                        "error": f"API request failed with status {response.status_code}: {error_detail}"
+                    }
+                    
+            except Exception as e:
+                logger.error(f"Exception during API request: {e}", exc_info=True)
+                
+                # Check if we should retry
+                if attempt < max_retries - 1:
+                    retry_delay_with_jitter = retry_delay * (2 ** attempt) + random.uniform(0, 1)
+                    logger.warning(f"Retrying in {retry_delay_with_jitter:.2f} seconds...")
+                    time.sleep(retry_delay_with_jitter)
+                else:
+                    return {
+                        "success": False,
+                        "error": f"API request failed after {max_retries} attempts: {str(e)}"
+                    }
+        
+        # This should not happen, but just in case
+        return {
+            "success": False,
+            "error": "Failed to get response from API after maximum retries"
+        }
+
     def sequential_thinking(
             self,
             prompt: str,
