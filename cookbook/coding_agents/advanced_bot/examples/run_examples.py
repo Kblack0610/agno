@@ -12,9 +12,13 @@ import logging
 import argparse
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
+# Add parent directory to path to make imports work correctly
+# when running this script directly
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+sys.path.insert(0, str(parent_dir))
 
+# Now import the validation bot modules
 from config.config_manager import ConfigManager
 from config.validation_profile import ValidationProfile
 from core.sequential_orchestrator import SequentialOrchestrator

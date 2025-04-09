@@ -7,15 +7,16 @@ and orchestrates the validation workflow.
 
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Callable, Union
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
-# Import configuration system
-from ..config.config_manager import ConfigManager
-from ..config.validation_profile import ValidationProfile
+# Update to absolute imports
+from config.config_manager import ConfigManager
+from config.validation_profile import ValidationProfile
 
 class SequentialOrchestrator:
     """

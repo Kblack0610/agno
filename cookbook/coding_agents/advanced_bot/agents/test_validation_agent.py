@@ -6,6 +6,7 @@ and providing comprehensive test analysis.
 """
 
 import os
+import sys
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
@@ -13,9 +14,9 @@ from typing import Dict, List, Any, Optional, Union
 from agno.agent import Agent
 from agno.models.openai import OpenAIChat
 
-# Import configuration system
-from ..config.config_manager import ConfigManager
-from ..config.validation_profile import ValidationProfile
+# Update to absolute imports
+from config.config_manager import ConfigManager
+from config.validation_profile import ValidationProfile
 
 class TestTools:
     """Tools for test validation and execution."""
