@@ -1,0 +1,43 @@
+## Standard Validation Profile Configuration
+## This configuration sets up a standard validation profile 
+## with reasonable thresholds for most projects
+
+validation:
+  profile: standard
+  test_frameworks:
+    - pytest
+    - unittest
+  linters:
+    - flake8
+    - pylint
+  type_checkers:
+    - mypy
+  timeout: 60
+  report_format: json
+
+agents:
+  test_validation:
+    enabled: true
+    result_analysis: true
+    coverage_threshold: 70
+  code_quality:
+    enabled: true
+    complexity_threshold: 10
+    style_check: true
+  performance:
+    enabled: false
+    benchmark_iterations: 3
+  security:
+    enabled: false
+    vulnerability_scan: true
+    dependency_check: true
+
+sequential_thinking:
+  enabled: true
+  max_steps: 10
+  thought_persistence: true
+
+logging:
+  level: INFO
+  file: null
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

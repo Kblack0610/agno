@@ -1,0 +1,40 @@
+## Minimal Validation Profile Configuration
+## This configuration sets up a minimal validation profile
+## with low thresholds for rapid development or prototyping
+
+validation:
+  profile: minimal
+  test_frameworks:
+    - pytest
+  linters:
+    - flake8
+  type_checkers: []  # No type checking required
+  timeout: 30
+  report_format: json
+
+agents:
+  test_validation:
+    enabled: true
+    result_analysis: true
+    coverage_threshold: 50  # Lower coverage requirement
+  code_quality:
+    enabled: true
+    complexity_threshold: 15  # More permissive complexity limit
+    style_check: false  # Style checking not required
+  performance:
+    enabled: false
+    benchmark_iterations: 1
+  security:
+    enabled: false
+    vulnerability_scan: false
+    dependency_check: false
+
+sequential_thinking:
+  enabled: true
+  max_steps: 5  # Fewer thinking steps
+  thought_persistence: false  # No need to persist thoughts
+
+logging:
+  level: WARNING  # Only log warnings and errors
+  file: null
+  format: "%(levelname)s - %(message)s"
