@@ -426,3 +426,13 @@ def get_message_bus() -> MessageBus:
     if _global_message_bus is None:
         _global_message_bus = MessageBus()
     return _global_message_bus
+
+def reset_message_bus() -> None:
+    """
+    Reset the global message bus instance.
+    
+    This is useful for testing and for starting fresh in new sessions.
+    """
+    global _global_message_bus
+    _global_message_bus = None
+    logging.getLogger('core.message_bus').info("Message bus reset")

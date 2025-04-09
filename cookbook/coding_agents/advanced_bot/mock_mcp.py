@@ -110,6 +110,59 @@ class MockMCP:
                 branch_id=branch_id,
                 needs_more_thoughts=needs_more_thoughts
             )
+    
+    def run_sequential_thinking(self, prompt: str, total_thoughts: int = 5, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Run sequential thinking for a prompt.
+        
+        Args:
+            prompt: The prompt to think about
+            total_thoughts: Number of thoughts to generate
+            context: Additional context for the thinking process
+            
+        Returns:
+            Dictionary with sequential thinking results
+        """
+        logger.info(f"Running sequential thinking for prompt: {prompt[:50]}...")
+        
+        # Initialize result
+        result = {
+            "success": True,
+            "steps": []
+        }
+        
+        # Start with an initial thought
+        current_thought = f"Let's analyze this task: {prompt}"
+        thought_number = 1
+        
+        # Generate a sequence of thoughts
+        while thought_number <= total_thoughts:
+            # Add current thought to result
+            result["steps"].append({
+                "thought": current_thought,
+                "thoughtNumber": thought_number,
+                "totalThoughts": total_thoughts,
+                "nextThoughtNeeded": thought_number < total_thoughts
+            })
+            
+            # If we've reached the total thoughts, break
+            if thought_number >= total_thoughts:
+                break
+            
+            # Generate next thought using the sequential thinking implementation
+            next_thought = self.sequential_thinking.think(
+                thought=current_thought,
+                thought_number=thought_number,
+                total_thoughts=total_thoughts,
+                next_thought_needed=True,
+                is_revision=False
+            )
+            
+            # Update for next iteration
+            current_thought = next_thought["thought"]
+            thought_number += 1
+        
+        return result
 
 
 class MockSequentialThinking:

@@ -10,6 +10,7 @@ import sys
 import subprocess
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
+import logging
 
 # Remove direct agno imports
 # from agno.agent import Agent
@@ -157,7 +158,8 @@ class TestValidationAgent:
             self,
             model_id: str = None,
             show_tool_calls: bool = True,
-            config_path: Optional[Union[str, Path]] = None
+            config_path: Optional[Union[str, Path]] = None,
+            verbose: bool = False
         ):
         """
         Initialize the test validation agent.
@@ -166,6 +168,7 @@ class TestValidationAgent:
             model_id: Model ID to use for analysis (overrides configuration)
             show_tool_calls: Whether to show tool calls in output
             config_path: Path to configuration file or directory
+            verbose: Whether to enable verbose logging
         """
         # Initialize configuration
         self.config = ConfigManager(config_path)
@@ -180,6 +183,14 @@ class TestValidationAgent:
         # Get model ID from config if not provided
         self.model_id = model_id or self.config.get("model.id", "gpt-4o")
         self.show_tool_calls = show_tool_calls
+        self.verbose = verbose
+        
+        # Set up logging
+        self.logger = logging.getLogger('agent.TestValidationAgent')
+        log_level = logging.DEBUG if verbose else logging.INFO
+        self.logger.setLevel(log_level)
+        
+        self.logger.info("TestValidationAgent initialized")
     
     def run_tests(self, directory: str) -> Dict[str, Any]:
         """
@@ -191,10 +202,7 @@ class TestValidationAgent:
         Returns:
             Dictionary with test results
         """
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        logger.info(f"Running tests for directory: {directory}")
+        self.logger.info(f"Running tests for directory: {directory}")
         
         # Use the tools to run tests
         try:
@@ -222,7 +230,7 @@ class TestValidationAgent:
             }
             
         except Exception as e:
-            logger.error(f"Error running tests: {e}")
+            self.logger.error(f"Error running tests: {e}")
             return {
                 "status": "error",
                 "success": False,

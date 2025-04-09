@@ -145,19 +145,51 @@ class StateManager:
             persist: Whether to persist state to disk
             track_history: Whether to track changes in history
         """
-        with self.state_lock:
+        # Acquire lock with timeout protection to prevent deadlocks
+        lock_acquired = self.state_lock.acquire(timeout=5)  # 5 second timeout
+        
+        if not lock_acquired:
+            self.logger.error("Failed to acquire state lock for update operation (timeout)")
+            return
+        
+        try:
+            # Create namespace if it doesn't exist
+            if namespace not in self.state:
+                self.state[namespace] = {}
+                self.history[namespace] = []
+            
             for key, value in updates.items():
-                self.set(
-                    key=key,
-                    value=value,
-                    namespace=namespace,
-                    persist=False,  # Don't persist until all updates complete
-                    track_history=track_history
-                )
+                # Track history if requested (directly in update to avoid nested locks)
+                if track_history:
+                    timestamp = time.time()
+                    old_value = self.state[namespace].get(key)
+                    
+                    self.history[namespace].append({
+                        'key': key,
+                        'old_value': old_value,
+                        'new_value': value,
+                        'timestamp': timestamp
+                    })
+                    
+                    # Limit history size
+                    if len(self.history[namespace]) > 100:
+                        self.history[namespace].pop(0)
+                
+                # Update state directly
+                self.state[namespace][key] = value
+                self.logger.debug(f"Set {namespace}.{key} = {value}")
             
             # Persist at the end if requested
             if persist and self.state_dir:
                 self._persist_namespace(namespace)
+        
+        except Exception as e:
+            self.logger.error(f"Error during state update: {e}")
+            raise
+        
+        finally:
+            # Always release the lock
+            self.state_lock.release()
     
     def delete(
             self,
@@ -388,3 +420,13 @@ def get_state_manager(state_dir: Optional[Union[str, Path]] = None) -> StateMana
     if _global_state_manager is None:
         _global_state_manager = StateManager(state_dir)
     return _global_state_manager
+
+def reset_state_manager() -> None:
+    """
+    Reset the global state manager instance.
+    
+    This is useful for testing and for starting fresh in new sessions.
+    """
+    global _global_state_manager
+    _global_state_manager = None
+    logging.getLogger('core.state_manager').info("State manager reset")

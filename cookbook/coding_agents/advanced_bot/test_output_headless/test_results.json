@@ -1,0 +1,74 @@
+{
+  "message_bus": {
+    "success": true,
+    "error": null,
+    "data": {
+      "message_bus_test": "passed"
+    },
+    "execution_time": 0.001878976821899414
+  },
+  "state_manager": {
+    "success": true,
+    "error": null,
+    "data": {
+      "state_manager_test": "passed"
+    },
+    "execution_time": 0.002814054489135742
+  },
+  "mock_mcp": {
+    "success": true,
+    "error": null,
+    "data": {
+      "mock_mcp_test": "passed",
+      "steps_count": 3
+    },
+    "execution_time": 0.001987457275390625
+  },
+  "validation_agent": {
+    "success": true,
+    "error": null,
+    "data": {
+      "validation_agent_test": "failed",
+      "result": {
+        "status": "completed",
+        "success": false,
+        "details": {
+          "coverage": 0,
+          "threshold": 70,
+          "passed": 0,
+          "failed": 0,
+          "skipped": 0
+        }
+      }
+    },
+    "execution_time": 0.1570601463317871
+  },
+  "planning_agent": {
+    "success": true,
+    "error": null,
+    "data": {
+      "planning_agent_test": "passed",
+      "plan_id": "7cb618a6-68ee-47aa-b92a-d36823d98d55",
+      "task_count": 3
+    },
+    "execution_time": 0.03313183784484863
+  },
+  "execution_agent": {
+    "success": true,
+    "error": null,
+    "data": {
+      "execution_agent_test": "failed",
+      "task_results": [
+        {
+          "task_id": "task1",
+          "success": false,
+          "result": {
+            "success": false,
+            "error": "File already exists: test.py"
+          }
+        }
+      ]
+    },
+    "execution_time": 0.0013844966888427734
+  }
+}
