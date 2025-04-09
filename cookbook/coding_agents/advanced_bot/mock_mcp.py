@@ -2,7 +2,7 @@
 """
 Mock MCP Implementation
 
-This module provides a mock implementation of the Model Capability Provider (MCP)
+This module provides a standalone mock implementation of the Model Capability Provider (MCP)
 for sequential thinking, allowing us to test the validation bot without requiring
 the actual MCP server.
 """
@@ -22,26 +22,94 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class MockMCPAgent:
+class MockMCP:
     """
-    Mock implementation of the Agent class from the agno module.
-    """
-    
-    def __init__(self, model=None):
-        """Initialize the mock agent."""
-        self.model = model or MockOpenAIChat()
-        logger.info(f"Initialized MockMCPAgent with model: {self.model.model}")
-
-
-class MockOpenAIChat:
-    """
-    Mock implementation of the OpenAIChat class from the agno.models.openai module.
+    Standalone Mock MCP implementation that can be used in place of the real MCP.
     """
     
-    def __init__(self, model="gpt-4o"):
-        """Initialize the mock OpenAI chat model."""
-        self.model = model
-        logger.info(f"Initialized MockOpenAIChat with model: {model}")
+    def __init__(self, use_real_mcp=False, mcp_server_url=None):
+        """
+        Initialize the Mock MCP.
+        
+        Args:
+            use_real_mcp: Whether to use the real MCP if available
+            mcp_server_url: URL of the real MCP server if use_real_mcp is True
+        """
+        self.use_real_mcp = use_real_mcp
+        self.mcp_server_url = mcp_server_url
+        
+        # Initialize mock components
+        self.sequential_thinking = MockSequentialThinking()
+        
+        # Try to import real MCP if requested
+        self.real_mcp_available = False
+        if use_real_mcp:
+            try:
+                # Here you would import the real MCP client
+                # For now, we'll just log that we're trying to use the real MCP
+                logger.info(f"Attempting to use real MCP at {mcp_server_url}")
+                # If real MCP import succeeds, set real_mcp_available to True
+                self.real_mcp_available = False  # Change to True if import succeeds
+            except ImportError:
+                logger.warning("Real MCP not available, falling back to mock implementation")
+        
+        logger.info(f"Initialized MockMCP with use_real_mcp={use_real_mcp}, real_mcp_available={self.real_mcp_available}")
+    
+    def sequentialthinking(
+        self,
+        thought: str,
+        thought_number: int,
+        total_thoughts: int,
+        next_thought_needed: bool = True,
+        is_revision: bool = False,
+        revises_thought: int = None,
+        branch_from_thought: int = None,
+        branch_id: str = None,
+        needs_more_thoughts: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Interface for the sequential thinking capability.
+        
+        Args:
+            thought: Current thought
+            thought_number: Current thought number
+            total_thoughts: Total expected thoughts
+            next_thought_needed: Whether another thought is needed
+            is_revision: Whether this thought revises a previous one
+            revises_thought: Number of the thought being revised
+            branch_from_thought: Thought number to branch from
+            branch_id: ID of the branch
+            needs_more_thoughts: Whether more thoughts are needed
+            
+        Returns:
+            Dictionary with the next thought
+        """
+        if self.real_mcp_available:
+            # Call the real MCP with these parameters
+            logger.info("Using real MCP for sequential thinking")
+            # This would be the actual call to the real MCP
+            # For now, we'll just return a placeholder
+            return {
+                "thought": "This would be from the real MCP",
+                "thoughtNumber": thought_number + 1,
+                "totalThoughts": total_thoughts,
+                "nextThoughtNeeded": False,
+                "isRevision": False
+            }
+        else:
+            # Use the mock implementation
+            logger.info("Using mock implementation for sequential thinking")
+            return self.sequential_thinking.think(
+                thought=thought,
+                thought_number=thought_number,
+                total_thoughts=total_thoughts,
+                next_thought_needed=next_thought_needed,
+                is_revision=is_revision,
+                revises_thought=revises_thought,
+                branch_from_thought=branch_from_thought,
+                branch_id=branch_id,
+                needs_more_thoughts=needs_more_thoughts
+            )
 
 
 class MockSequentialThinking:
@@ -60,7 +128,10 @@ class MockSequentialThinking:
         total_thoughts: int,
         next_thought_needed: bool = True,
         is_revision: bool = False,
-        revises_thought: int = None
+        revises_thought: int = None,
+        branch_from_thought: int = None,
+        branch_id: str = None,
+        needs_more_thoughts: bool = False
     ) -> Dict[str, Any]:
         """
         Generate the next thought in the sequential thinking process.
@@ -72,6 +143,9 @@ class MockSequentialThinking:
             next_thought_needed: Whether another thought is needed
             is_revision: Whether this thought revises a previous one
             revises_thought: Number of the thought being revised
+            branch_from_thought: Thought number to branch from
+            branch_id: ID of the branch
+            needs_more_thoughts: Whether more thoughts are needed
             
         Returns:
             Dictionary with the next thought
@@ -83,7 +157,10 @@ class MockSequentialThinking:
             "totalThoughts": total_thoughts,
             "nextThoughtNeeded": next_thought_needed,
             "isRevision": is_revision,
-            "revisesThought": revises_thought
+            "revisesThought": revises_thought,
+            "branchFromThought": branch_from_thought,
+            "branchId": branch_id,
+            "needsMoreThoughts": needs_more_thoughts
         })
         
         # Generate next thought based on context
@@ -99,7 +176,10 @@ class MockSequentialThinking:
                 "thoughtNumber": thought_number + 1,
                 "totalThoughts": total_thoughts,
                 "nextThoughtNeeded": (thought_number + 1) < total_thoughts,
-                "isRevision": False
+                "isRevision": False,
+                "branchFromThought": branch_from_thought,
+                "branchId": branch_id,
+                "needsMoreThoughts": needs_more_thoughts
             }
         else:
             # No more thoughts needed
@@ -108,7 +188,10 @@ class MockSequentialThinking:
                 "thoughtNumber": thought_number + 1,
                 "totalThoughts": total_thoughts,
                 "nextThoughtNeeded": False,
-                "isRevision": False
+                "isRevision": False,
+                "branchFromThought": branch_from_thought,
+                "branchId": branch_id,
+                "needsMoreThoughts": False
             }
     
     def _generate_next_thought(
@@ -128,9 +211,6 @@ class MockSequentialThinking:
         Returns:
             Generated next thought
         """
-        # In a real implementation, this would call an LLM
-        # For now, we'll use a simple template based on the context
-        
         # Check if the current thought mentions tests
         if "test" in current_thought.lower():
             next_thoughts = [
@@ -158,6 +238,15 @@ class MockSequentialThinking:
                 "Based on the type checking results, I'll determine if they meet the requirements.",
                 "I should provide feedback on any type-related issues that need to be fixed."
             ]
+        # Check if the current thought mentions security
+        elif "security" in current_thought.lower():
+            next_thoughts = [
+                "I need to analyze the security requirements for this validation.",
+                "The validation profile specifies whether security validation is required.",
+                "I'll run security scanning tools to identify any vulnerabilities.",
+                "Based on the security scan results, I'll determine if they meet the requirements.",
+                "I should provide feedback on any security issues that need to be addressed."
+            ]
         # Default to a generic validation flow
         else:
             next_thoughts = [
@@ -175,16 +264,20 @@ class MockSequentialThinking:
             return "I've completed my analysis and gathered all necessary information."
 
 
+# Adapter function to match the MCP interface expected by the validation bot
 def mcp2_sequentialthinking(
     thought: str,
     thoughtNumber: int,
     totalThoughts: int,
     nextThoughtNeeded: bool = True,
     isRevision: bool = False,
-    revisesThought: int = None
+    revisesThought: int = None,
+    branchFromThought: int = None,
+    branchId: str = None,
+    needsMoreThoughts: bool = False
 ) -> Dict[str, Any]:
     """
-    Mock implementation of the mcp2_sequentialthinking tool.
+    Adapter function that matches the MCP interface expected by the validation bot.
     
     Args:
         thought: Current thought
@@ -193,50 +286,36 @@ def mcp2_sequentialthinking(
         nextThoughtNeeded: Whether another thought is needed
         isRevision: Whether this thought revises a previous one
         revisesThought: Number of the thought being revised
+        branchFromThought: Thought number to branch from
+        branchId: ID of the branch
+        needsMoreThoughts: Whether more thoughts are needed
         
     Returns:
         Dictionary with the next thought
     """
-    # Initialize the sequential thinking tool
-    thinking_tool = MockSequentialThinking()
+    # Initialize the mock MCP
+    mock_mcp = MockMCP()
     
-    # Generate the next thought
-    return thinking_tool.think(
+    # Call the sequential thinking function
+    return mock_mcp.sequentialthinking(
         thought=thought,
         thought_number=thoughtNumber,
         total_thoughts=totalThoughts,
         next_thought_needed=nextThoughtNeeded,
         is_revision=isRevision,
-        revises_thought=revisesThought
+        revises_thought=revisesThought,
+        branch_from_thought=branchFromThought,
+        branch_id=branchId,
+        needs_more_thoughts=needsMoreThoughts
     )
-
-
-# Mock MCP module structure
-class MockAgno:
-    """Mock agno module."""
-    
-    class agent:
-        """Mock agent module."""
-        Agent = MockMCPAgent
-    
-    class models:
-        """Mock models module."""
-        
-        class openai:
-            """Mock openai module."""
-            OpenAIChat = MockOpenAIChat
-
-
-# Add mock modules to sys.modules
-sys.modules["agno"] = MockAgno()
-sys.modules["agno.agent"] = MockAgno.agent
-sys.modules["agno.models"] = MockAgno.models
-sys.modules["agno.models.openai"] = MockAgno.models.openai
 
 
 def run_example():
     """Run an example of the mock MCP sequential thinking."""
     print("\n===== Mock MCP Sequential Thinking Example =====")
+    
+    # Initialize mock MCP
+    mock_mcp = MockMCP(use_real_mcp=False)
     
     # Initial thought
     initial_thought = {
@@ -254,13 +333,13 @@ def run_example():
     
     while current_thought.get("nextThoughtNeeded", False):
         # Get next thought
-        next_thought = mcp2_sequentialthinking(
+        next_thought = mock_mcp.sequentialthinking(
             thought=current_thought["thought"],
-            thoughtNumber=current_thought["thoughtNumber"],
-            totalThoughts=current_thought["totalThoughts"],
-            nextThoughtNeeded=current_thought["nextThoughtNeeded"],
-            isRevision=current_thought.get("isRevision", False),
-            revisesThought=current_thought.get("revisesThought", None)
+            thought_number=current_thought["thoughtNumber"],
+            total_thoughts=current_thought["totalThoughts"],
+            next_thought_needed=current_thought["nextThoughtNeeded"],
+            is_revision=current_thought.get("isRevision", False),
+            revises_thought=current_thought.get("revisesThought", None)
         )
         
         print(f"Thought {next_thought['thoughtNumber']}: {next_thought['thought']}")

@@ -11,8 +11,9 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
 
-from agno.agent import Agent
-from agno.models.openai import OpenAIChat
+# Remove direct agno imports
+# from agno.agent import Agent
+# from agno.models.openai import OpenAIChat
 
 # Update to absolute imports
 from config.config_manager import ConfigManager
@@ -145,18 +146,19 @@ class TestTools:
             return f"Error reading file: {str(e)}"
 
 class TestValidationAgent:
-    """Agent specialized in test validation and analysis.
+    """
+    Agent specialized in test validation and analysis.
     
     This agent runs tests, analyzes test results, and provides insights
     and recommendations for improving test coverage and quality.
     """
     
     def __init__(
-        self,
-        model_id: str = None,
-        show_tool_calls: bool = True,
-        config_path: Optional[Union[str, Path]] = None
-    ):
+            self,
+            model_id: str = None,
+            show_tool_calls: bool = True,
+            config_path: Optional[Union[str, Path]] = None
+        ):
         """
         Initialize the test validation agent.
         
@@ -176,58 +178,63 @@ class TestValidationAgent:
         self.validation_profile = ValidationProfile(profile_name, self.config)
         
         # Get model ID from config if not provided
-        model_id = model_id or self.config.get("model.id", "gpt-4o")
+        self.model_id = model_id or self.config.get("model.id", "gpt-4o")
+        self.show_tool_calls = show_tool_calls
+    
+    def run_tests(self, directory: str) -> Dict[str, Any]:
+        """
+        Run tests for the given directory.
         
-        # Configure the agent with more detailed instructions based on profile
-        self.agent = Agent(
-            name="Test Validation Agent",
-            model=OpenAIChat(id=model_id),
-            description=f"An agent that specializes in test validation and analysis using the {profile_name} profile",
-            instructions=f"""
-            You are a Test Validation Agent that specializes in running tests,
-            analyzing test results, and providing insights for improving test
-            coverage and quality.
+        Args:
+            directory: Directory to run tests for
             
-            Your active validation profile is: {profile_name}
+        Returns:
+            Dictionary with test results
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Running tests for directory: {directory}")
+        
+        # Use the tools to run tests
+        try:
+            # Run tests using pytest by default
+            result = self.tools.run_pytest(
+                directory=directory,
+                verbose=True,
+                coverage=True
+            )
             
-            Your responsibilities include:
-            1. Running tests using different testing frameworks
-            2. Analyzing test results and failures
-            3. Checking test coverage and quality
-            4. Providing recommendations for improving tests
-            5. Identifying untested code paths and edge cases
+            # Analyze test results
+            coverage = result.get("coverage", 0)
+            threshold = self.validation_profile.get("test_coverage_threshold")
             
-            Follow these guidelines when analyzing tests:
-            - Be thorough in analyzing test failures
-            - Look for edge cases that might not be covered
-            - Check for proper assertions and validations
-            - Suggest improvements for test structure and readability
-            - Recommend additional tests where coverage is lacking
+            return {
+                "status": "completed",
+                "success": coverage >= threshold,
+                "details": {
+                    "coverage": coverage,
+                    "threshold": threshold,
+                    "passed": result.get("passed", 0),
+                    "failed": result.get("failed", 0),
+                    "skipped": result.get("skipped", 0)
+                }
+            }
             
-            Validation thresholds for your current profile:
-            - Test coverage threshold: {self.validation_profile.get("test_coverage_threshold")}%
-            - Maximum complexity threshold: {self.validation_profile.get("complexity_threshold")}
-            - Lint error threshold: {self.validation_profile.get("lint_error_threshold")}
-            - Lint warning threshold: {self.validation_profile.get("lint_warning_threshold")}
-            
-            Format your analysis with:
-            - Summary of test results (passed/failed)
-            - Detailed analysis of failures
-            - Coverage assessment
-            - Recommendations for improvements
-            - Suggested additional tests
-            """,
-            tools=[self.tools],
-            show_tool_calls=show_tool_calls,
-            markdown=True,
-        )
+        except Exception as e:
+            logger.error(f"Error running tests: {e}")
+            return {
+                "status": "error",
+                "success": False,
+                "error": str(e)
+            }
     
     def validate_tests(
-        self,
-        directory: str,
-        test_type: str = "pytest",
-        coverage: bool = True
-    ) -> Dict[str, Any]:
+            self,
+            directory: str,
+            test_type: str = "pytest",
+            coverage: bool = True
+        ) -> Dict[str, Any]:
         """
         Run validation on tests in the specified directory.
         
@@ -239,65 +246,24 @@ class TestValidationAgent:
         Returns:
             Dictionary with validation results
         """
-        # Get the test files
-        test_files = []
-        for root, _, files in os.walk(directory):
-            for file in files:
-                if file.startswith("test_") and file.endswith(".py"):
-                    test_files.append(os.path.join(root, file))
-        
-        # Run the tests
         if test_type == "pytest":
-            test_results = self.tools.run_pytest(directory)
-        elif test_type == "unittest":
-            # For unittest, we'd need to specify modules
-            # This is a simplified example
-            test_results = self.tools.run_unittest(directory)
+            result = self.tools.run_pytest(
+                directory=directory,
+                verbose=True,
+                coverage=coverage
+            )
         else:
-            test_results = {"error": f"Unsupported test type: {test_type}"}
+            result = {
+                "status": "error",
+                "error": f"Test type '{test_type}' not supported"
+            }
         
-        # Get coverage if requested
-        coverage_results = {}
-        if coverage and test_type == "pytest":
-            coverage_results = self.tools.get_test_coverage(directory)
-        
-        # Build a prompt for the agent to analyze the results
-        prompt = f"""
-        Analyze the following test results:
-        
-        Test Type: {test_type}
-        Directory: {directory}
-        
-        Test Results:
-        ```
-        {test_results.get('output', 'No output')}
-        ```
-        
-        Coverage Results:
-        ```
-        {coverage_results.get('output', 'No coverage data')}
-        ```
-        
-        Please provide:
-        1. A summary of the test results
-        2. Analysis of any test failures
-        3. Assessment of test coverage
-        4. Recommendations for improving the tests
-        """
-        
-        # Run the agent to analyze the results
-        analysis = self.agent.run(prompt)
-        
-        return {
-            "test_results": test_results,
-            "coverage_results": coverage_results,
-            "analysis": analysis
-        }
+        return result
     
     def analyze_test_file(
-        self,
-        file_path: str
-    ) -> Dict[str, Any]:
+            self,
+            file_path: str
+        ) -> Dict[str, Any]:
         """
         Analyze a single test file.
         
@@ -307,34 +273,13 @@ class TestValidationAgent:
         Returns:
             Dictionary with analysis results
         """
-        # Get the file content
-        content = self.tools.get_file_content(file_path)
-        
-        # Build a prompt for the agent to analyze the file
-        prompt = f"""
-        Analyze the following test file:
-        
-        File: {file_path}
-        
-        ```python
-        {content}
-        ```
-        
-        Please provide:
-        1. A summary of the tests in this file
-        2. Analysis of test coverage and thoroughness
-        3. Identification of any missing edge cases
-        4. Recommendations for improving the tests
-        """
-        
-        # Run the agent to analyze the file
-        analysis = self.agent.run(prompt)
-        
-        return {
-            "file_path": file_path,
-            "content": content,
-            "analysis": analysis
-        }
+        # For now, just run tests for the file
+        return self.tools.run_pytest(
+            directory=str(Path(file_path).parent),
+            pattern=str(Path(file_path).name),
+            verbose=True,
+            coverage=True
+        )
 
 # Example usage
 if __name__ == "__main__":
