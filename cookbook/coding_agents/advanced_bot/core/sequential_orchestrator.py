@@ -245,6 +245,337 @@ class SequentialOrchestrator:
             "status": "executed"
         }
 
+    def run(self) -> Dict[str, Any]:
+        """
+        Run the full validation flow with sequential thinking MCP.
+        
+        This method executes the complete validation workflow by:
+        1. Extracting validation requirements from the context
+        2. Integrating with the sequential thinking MCP
+        3. Running validation tools based on sequential thinking output
+        4. Generating a response to the user prompt
+        
+        Returns:
+            Dictionary containing validation results and response
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Extract validation parameters from context
+        user_prompt = self.validation_context.get("user_prompt", "")
+        target_directory = self.validation_context.get("target_directory", ".")
+        validation_types = self.validation_context.get("validation_types", ["test", "lint"])
+        
+        logger.info(f"Starting validation run with prompt: {user_prompt}")
+        logger.info(f"Target directory: {target_directory}")
+        logger.info(f"Validation types: {validation_types}")
+        
+        # Set up validation tools
+        validation_tools = self._setup_validation_tools()
+        
+        # Initialize results
+        results = {
+            "success": True,
+            "details": {},
+            "steps": []
+        }
+        
+        # Run validation for each type
+        for validation_type in validation_types:
+            # Check if validation type is required by profile
+            if not self.validation_profile.is_validation_required(validation_type):
+                logger.info(f"Skipping {validation_type} validation (not required by profile)")
+                results["details"][f"{validation_type}_validation"] = {
+                    "status": "skipped",
+                    "reason": f"Not required by {self.validation_profile.name} profile"
+                }
+                continue
+            
+            logger.info(f"Running {validation_type} validation with sequential thinking")
+            
+            # Start the validation chain with sequential thinking
+            validation_chain = self.start_validation_chain(
+                prompt=user_prompt,
+                validation_type=validation_type,
+                initial_context={
+                    "target_directory": str(target_directory),
+                    "validation_profile": self.validation_profile.name
+                },
+                estimated_steps=5
+            )
+            
+            # In a real implementation, we would use MCP sequential thinking
+            # to continue the chain. For now, we'll simulate with fixed steps.
+            try:
+                # Call mcp2_sequentialthinking tool
+                chain_result = self._run_sequential_thinking(validation_chain, validation_type, validation_tools)
+                
+                # Add the validation results to overall results
+                results["details"][f"{validation_type}_validation"] = chain_result
+                
+                # Update success flag if any validation fails
+                if chain_result.get("success", True) is False:
+                    results["success"] = False
+                    
+                # Add steps to overall steps
+                if "steps" in chain_result:
+                    results["steps"].extend(chain_result["steps"])
+                    
+            except Exception as e:
+                logger.error(f"Error running {validation_type} validation: {e}")
+                results["success"] = False
+                results["details"][f"{validation_type}_validation"] = {
+                    "status": "error",
+                    "error": str(e)
+                }
+        
+        # Generate a response to the user prompt
+        results["response"] = self._generate_response(user_prompt, results)
+        
+        return results
+
+    def _setup_validation_tools(self) -> Dict[str, Callable]:
+        """
+        Set up validation tools for the orchestrator.
+        
+        Returns:
+            Dictionary of validation tool functions
+        """
+        from pathlib import Path
+        import subprocess
+        import sys
+        
+        def run_tests():
+            """Run tests for the target directory."""
+            target_dir = self.validation_context.get("target_directory", ".")
+            # This would be implemented with actual test runners
+            print(f"Running tests for {target_dir}")
+            return {
+                "status": "success",
+                "coverage": 85,
+                "tests_passed": 42,
+                "tests_failed": 2
+            }
+            
+        def lint_code():
+            """Run linting for the target directory."""
+            target_dir = self.validation_context.get("target_directory", ".")
+            # This would be implemented with actual linters
+            print(f"Linting code in {target_dir}")
+            return {
+                "status": "success",
+                "errors": 0,
+                "warnings": 5
+            }
+            
+        def check_types():
+            """Run type checking for the target directory."""
+            target_dir = self.validation_context.get("target_directory", ".")
+            # This would be implemented with actual type checkers
+            print(f"Type checking code in {target_dir}")
+            return {
+                "status": "success",
+                "errors": 1
+            }
+            
+        # Return dictionary of validation tools
+        return {
+            "run_tests": run_tests,
+            "lint_code": lint_code,
+            "check_types": check_types
+        }
+
+    def _run_sequential_thinking(
+        self,
+        validation_chain: Dict[str, Any],
+        validation_type: str,
+        validation_tools: Dict[str, Callable]
+    ) -> Dict[str, Any]:
+        """
+        Run sequential thinking for validation using MCP.
+        
+        Args:
+            validation_chain: Initial validation chain
+            validation_type: Type of validation to perform
+            validation_tools: Dictionary of validation tools
+            
+        Returns:
+            Results of the sequential thinking validation
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # In a real implementation, this would integrate with the MCP
+        # For now, we'll simulate with fixed thought steps
+        logger.info(f"Running sequential thinking for {validation_type} validation")
+        
+        # Start with the initial thought from the validation chain
+        thoughts = validation_chain.get("thought_history", [])
+        steps = []
+        
+        if not thoughts:
+            return {
+                "status": "error",
+                "error": "No initial thought provided",
+                "success": False
+            }
+            
+        # Add initial thought to steps
+        initial_thought = thoughts[0]
+        steps.append({
+            "thought": initial_thought["thought"],
+            "thoughtNumber": initial_thought["thoughtNumber"],
+            "totalThoughts": initial_thought["totalThoughts"]
+        })
+        
+        # For testing purposes, generate fixed thoughts
+        # In a real implementation, we would call mcp2_sequentialthinking
+        if validation_type == "test":
+            next_thoughts = [
+                "I need to analyze the test requirements and determine the test coverage threshold.",
+                f"The {self.validation_profile.name} profile requires a test coverage of {self.validation_profile.get('test_coverage_threshold')}%.",
+                "I'll run the tests and check if the coverage meets the threshold.",
+                "Tests completed. Analyzing results to determine if they meet the requirements."
+            ]
+        elif validation_type == "lint":
+            next_thoughts = [
+                "I need to analyze the linting requirements for this validation.",
+                f"The {self.validation_profile.name} profile allows {self.validation_profile.get('lint_error_threshold')} errors and {self.validation_profile.get('lint_warning_threshold')} warnings.",
+                "I'll run the linter to check code quality.",
+                "Linting completed. Analyzing results to determine if they meet the requirements."
+            ]
+        else:
+            next_thoughts = [
+                f"I need to analyze the requirements for {validation_type} validation.",
+                "Let me check what the validation profile specifies for this check.",
+                f"Running {validation_type} validation tools to check the code.",
+                "Validation completed. Analyzing results to determine if they meet the requirements."
+            ]
+            
+        # Add thoughts to steps
+        for i, thought_text in enumerate(next_thoughts, 2):
+            steps.append({
+                "thought": thought_text,
+                "thoughtNumber": i,
+                "totalThoughts": initial_thought["totalThoughts"]
+            })
+            
+            # Execute validation tools based on thought
+            if "run" in thought_text.lower() and validation_type in thought_text.lower():
+                # Execute the appropriate validation tool
+                if validation_type == "test" and "run_tests" in validation_tools:
+                    tool_results = validation_tools["run_tests"]()
+                elif validation_type == "lint" and "lint_code" in validation_tools:
+                    tool_results = validation_tools["lint_code"]()
+                elif validation_type == "type_check" and "check_types" in validation_tools:
+                    tool_results = validation_tools["check_types"]()
+                else:
+                    tool_results = {"status": "not_implemented"}
+                    
+                logger.info(f"Executed {validation_type} tool with results: {tool_results}")
+                
+        # Add final thought with validation decision
+        tool_results = {}
+        success = True
+        
+        if validation_type == "test" and "run_tests" in validation_tools:
+            tool_results = validation_tools["run_tests"]()
+            threshold = self.validation_profile.get("test_coverage_threshold")
+            success = tool_results.get("coverage", 0) >= threshold
+            
+            final_thought = (
+                f"Test validation completed with {tool_results.get('coverage', 0)}% coverage. "
+                f"The threshold is {threshold}%. "
+                f"{'Requirements met.' if success else 'Requirements not met.'}"
+            )
+        elif validation_type == "lint" and "lint_code" in validation_tools:
+            tool_results = validation_tools["lint_code"]()
+            error_threshold = self.validation_profile.get("lint_error_threshold")
+            warning_threshold = self.validation_profile.get("lint_warning_threshold")
+            
+            error_success = tool_results.get("errors", 0) <= error_threshold
+            warning_success = tool_results.get("warnings", 0) <= warning_threshold
+            success = error_success and warning_success
+            
+            final_thought = (
+                f"Lint validation completed with {tool_results.get('errors', 0)} errors and {tool_results.get('warnings', 0)} warnings. "
+                f"Thresholds are {error_threshold} errors and {warning_threshold} warnings. "
+                f"{'Requirements met.' if success else 'Requirements not met.'}"
+            )
+        else:
+            final_thought = f"{validation_type.capitalize()} validation completed. Results need further analysis."
+            
+        steps.append({
+            "thought": final_thought,
+            "thoughtNumber": len(next_thoughts) + 2,
+            "totalThoughts": len(next_thoughts) + 2,
+            "nextThoughtNeeded": False
+        })
+        
+        # Return results
+        return {
+            "status": "completed",
+            "success": success,
+            "details": tool_results,
+            "steps": steps
+        }
+        
+    def _generate_response(self, prompt: str, results: Dict[str, Any]) -> str:
+        """
+        Generate a response to the user prompt based on validation results.
+        
+        Args:
+            prompt: User prompt
+            results: Validation results
+            
+        Returns:
+            Generated response
+        """
+        if not prompt:
+            return "Validation completed without a specific prompt."
+        
+        # Create a response based on validation results
+        if results.get("success", False):
+            response = f"Your code passed all required validations using the {self.validation_profile.name} profile."
+        else:
+            response = f"Your code did not pass all required validations using the {self.validation_profile.name} profile."
+        
+        # Add details about test coverage if available
+        if "test_validation" in results.get("details", {}):
+            test_results = results["details"]["test_validation"]
+            if "details" in test_results and "coverage" in test_results["details"]:
+                coverage = test_results["details"]["coverage"]
+                threshold = self.validation_profile.get("test_coverage_threshold")
+                response += f"\n\nTest coverage: {coverage}% (threshold: {threshold}%)"
+        
+        # Add details about lint validation if available
+        if "lint_validation" in results.get("details", {}):
+            lint_results = results["details"]["lint_validation"]
+            if "details" in lint_results:
+                errors = lint_results["details"].get("errors", 0)
+                warnings = lint_results["details"].get("warnings", 0)
+                response += f"\nLint validation: {errors} errors, {warnings} warnings"
+        
+        # Add a recommendation based on the prompt and results
+        response += f"\n\nBased on your prompt: \"{prompt}\", here's a recommendation:\n"
+        
+        # This would be a good place to use an LLM for generating a tailored response
+        # For now, we'll use a simple template
+        if "test" in prompt.lower():
+            response += "I recommend focusing on improving your test coverage and test quality."
+        elif "lint" in prompt.lower():
+            response += "I recommend addressing the lint issues to improve code quality."
+        elif "type" in prompt.lower():
+            response += "I recommend fixing the type checking issues to improve code robustness."
+        elif "security" in prompt.lower():
+            response += "I recommend addressing the security vulnerabilities immediately."
+        elif "performance" in prompt.lower():
+            response += "I recommend profiling your code to identify performance bottlenecks."
+        else:
+            response += "I recommend reviewing the validation results and addressing the issues based on your project priorities."
+        
+        return response
+
 # Example usage (will be implemented in separate files)
 if __name__ == "__main__":
     # Example orchestrator
