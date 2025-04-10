@@ -85,15 +85,11 @@ def format_result(result: Number) -> str:
     Returns:
         A formatted string representation of the number
     """
-    # If it's an integer or a float that equals its integer value, display as int
     if isinstance(result, float) and result.is_integer():
         return str(int(result))
-    
-    # For floats, limit to 6 decimal places and remove trailing zeros
     if isinstance(result, float):
-        formatted = f"{result:.6f}".rstrip('0').rstrip('.')
-        return formatted
-    
+        # Remove trailing zeros and decimal point if not needed
+        return f"{result:.6f}".rstrip('0').rstrip('.')
     return str(result)
 
 
@@ -107,7 +103,7 @@ def display_welcome():
     print()
 
 
-def parse_input(user_input):
+def parse_input(user_input: str) -> Tuple[float, str, float]:
     """
     Parse the user input string into operands and operator.
     
@@ -115,36 +111,37 @@ def parse_input(user_input):
         user_input (str): The input string (e.g., "5 + 3")
         
     Returns:
-        tuple: (first_number, operator, second_number) or None if parsing fails
+        tuple: (first_number, operator, second_number)
+        
+    Raises:
+        ValueError: If input format is invalid or contains unsupported operators
     """
+    # Split the input by spaces
+    parts = user_input.split()
+    
+    # Ensure we have exactly 3 parts (operand, operator, operand)
+    if len(parts) != 3:
+        raise ValueError("Invalid input format. Please use: number operator number")
+    
+    # Extract values
+    first_str, operator, second_str = parts
+    
+    # Check operator
+    valid_operators = ['+', '-', '*', '/']
+    if operator not in valid_operators:
+        raise ValueError(f"Unsupported operator '{operator}'. Supported operators: {', '.join(valid_operators)}")
+    
+    # Convert operands to float
     try:
-        # Split the input by spaces
-        parts = user_input.strip().split()
-        
-        if len(parts) != 3:
-            print("Error: Please use format 'number operator number'")
-            return None
-            
-        first_number = float(parts[0])
-        operator = parts[1]
-        second_number = float(parts[2])
-        
-        # Validate operator
-        if operator not in ['+', '-', '*', '/']:
-            print(f"Error: Unsupported operator '{operator}'")
-            print("Supported operators: +, -, *, /")
-            return None
-            
-        return first_number, operator, second_number
+        first_number = float(first_str)
+        second_number = float(second_str)
     except ValueError:
-        print("Error: Please enter valid numbers")
-        return None
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return None
+        raise ValueError("Invalid numbers. Please enter numeric values.")
+    
+    return (first_number, operator, second_number)
 
 
-def calculate(first_number, operator, second_number):
+def calculate(first_number: float, operator: str, second_number: float) -> float:
     """
     Perform the calculation based on the operator.
     
@@ -154,23 +151,22 @@ def calculate(first_number, operator, second_number):
         second_number (float): Second number
         
     Returns:
-        float: Result of the calculation or None if operation fails
+        float: Result of the calculation
+        
+    Raises:
+        ValueError: If operator is not supported
+        ZeroDivisionError: If division by zero is attempted
     """
-    try:
-        if operator == '+':
-            return add(first_number, second_number)
-        elif operator == '-':
-            return subtract(first_number, second_number)
-        elif operator == '*':
-            return multiply(first_number, second_number)
-        elif operator == '/':
-            return divide(first_number, second_number)
-    except ZeroDivisionError:
-        print("Error: Division by zero is not allowed")
-        return None
-    except Exception as e:
-        print(f"Error during calculation: {str(e)}")
-        return None
+    if operator == '+':
+        return add(first_number, second_number)
+    elif operator == '-':
+        return subtract(first_number, second_number)
+    elif operator == '*':
+        return multiply(first_number, second_number)
+    elif operator == '/':
+        return divide(first_number, second_number)
+    else:
+        raise ValueError(f"Unsupported operator: {operator}")
 
 
 def calculator_loop():
@@ -178,23 +174,24 @@ def calculator_loop():
     display_welcome()
     
     while True:
-        # Get user input
-        user_input = input("Enter calculation: ").strip()
-        
-        # Check for exit command
-        if user_input.lower() in ['exit', 'quit', 'q']:
-            print("Thank you for using the calculator!")
-            break
+        try:
+            # Get user input
+            user_input = input("Enter calculation: ").strip()
             
-        # Process the input
-        parsed_input = parse_input(user_input)
-        if parsed_input:
-            first_number, operator, second_number = parsed_input
+            # Check for exit command
+            if user_input.lower() in ['exit', 'quit', 'q']:
+                print("Thank you for using the calculator!")
+                break
+                
+            # Process the input
+            first_number, operator, second_number = parse_input(user_input)
             result = calculate(first_number, operator, second_number)
             
-            if result is not None:
-                formatted_result = format_result(result)
-                print(f"Result: {formatted_result}")
+            formatted_result = format_result(result)
+            print(f"Result: {formatted_result}")
+            
+        except Exception as e:
+            print(f"Error: {str(e)}")
         
         print()  # Empty line for readability
 
